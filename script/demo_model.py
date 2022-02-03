@@ -26,9 +26,11 @@ def get_predictions(model, tokenizer, sentence):
     ambiguous_word = re_result.group(1).strip()
     sense_keys = []
     definitions = []
-    for sense_key, definition in get_glosses(ambiguous_word, None).items():
+    syns = []
+    for sense_key, t in get_glosses(ambiguous_word, None).items():
         sense_keys.append(sense_key)
-        definitions.append(definition)
+        definitions.append(t[0])
+        syns.append(t[1])
 
     record = GlossSelectionRecord("test", sentence, sense_keys, definitions, [-1])
     features = _create_features_from_records([record], MAX_SEQ_LENGTH, tokenizer,
@@ -50,7 +52,7 @@ def get_predictions(model, tokenizer, sentence):
             )
         scores = softmax(logits, dim=0)
 
-    return sorted(zip(sense_keys, definitions, scores), key=lambda x: x[-1], reverse=True)
+    return sorted(zip(sense_keys, syns, definitions, scores), key=lambda x: x[-1], reverse=True)
 
 
 def load_model(m_dir):

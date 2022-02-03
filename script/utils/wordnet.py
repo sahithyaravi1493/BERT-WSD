@@ -29,8 +29,8 @@ def _get_info(lemma, pos, info_type):
                 break
             elif l.name().lower() in morphemes:
                 sense_key = l.key()
-        assert sense_key is not None
-        results[sense_key] = synset.examples() if info_type == 'examples' else synset.definition()
+        if sense_key is not None:
+            results[sense_key] = (synset.examples() if info_type == 'examples' else synset.definition(), synset)
 
     return results
 

@@ -39,10 +39,10 @@ POS_ALLOWED = {"NOUN"} #{"VERB", "NOUN", "ADJ"}
 sense_key_regex = r"(.*)\%(.*):(.*):(.*):(.*):(.*)"
 synset_types = {1:'n', 2:'v', 3:'a', 4:'r', 5:'s'}
 
-def synset_from_sense_key(sense_key):
-    lemma, ss_type, lex_num, lex_id, head_word, head_id = re.match(sense_key_regex, sense_key).groups()
-    ss_idx = '.'.join([lemma, synset_types[int(ss_type)], lex_id])
-    return wn.synset(ss_idx)
+# def synset_from_sense_key(sense_key):
+#     lemma, ss_type, lex_num, lex_id, head_word, head_id = re.match(sense_key_regex, sense_key).groups()
+#     ss_idx = '.'.join([lemma, synset_types[int(ss_type)], lex_id])
+#     return wn.synset(ss_idx)
 
 
 def get_synonyms(word, tag=wn.NOUN):
@@ -78,10 +78,17 @@ def load_text(path):
     return input
 
 def get_bert_predictions(sentence, word):
+    out = None
     word_tgt = f"[TGT]{word}[TGT]"
     p = get_predictions(model, tokenizer, sentence.replace(word,word_tgt))
-    best = p[0][0]
-    return (synset_from_sense_key(best))
+    if p:
+        print(p)
+        out = p[0][1]
+    else:
+        if wn.synsets(word):
+            out = wn.synsets(word)[0]
+        
+    return out
 
 
 # wup_similarity
