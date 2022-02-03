@@ -1,4 +1,6 @@
 import argparse
+from json import load
+from lib2to3.pgen2.tokenize import tokenize
 import re
 
 import torch
@@ -51,6 +53,16 @@ def get_predictions(model, tokenizer, sentence):
     return sorted(zip(sense_keys, definitions, scores), key=lambda x: x[-1], reverse=True)
 
 
+def load_model(m_dir):
+    # Load fine-tuned model and vocabulary
+    print("Loading model...")
+    model = BertWSD.from_pretrained(m_dir)
+    tokenizer = BertTokenizer.from_pretrained(m_dir)
+    model.to(DEVICE)
+    model.eval()
+    return model, tokenizer
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -62,13 +74,7 @@ def main():
         help="Directory of pre-trained model."
     )
     args = parser.parse_args()
-
-    # Load fine-tuned model and vocabulary
-    print("Loading model...")
-    model = BertWSD.from_pretrained(args.model_dir)
-    tokenizer = BertTokenizer.from_pretrained(args.model_dir)
-    model.to(DEVICE)
-    model.eval()
+    model, tokenizer = load_model(args.model_dir)
 
     while True:
         sentence = input("\nEnter a sentence with an ambiguous word surrounded by [TGT] tokens\n> ")

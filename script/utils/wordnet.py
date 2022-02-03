@@ -1,9 +1,16 @@
 import nltk
 
-try:
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    nltk.download('wordnet')
+dir = '/ubc/cs/research/nlp/sahiravi/datasets/caches'
+# nltk.download('averaged_perceptron_tagger', download_dir=dir)
+nltk.download('omw-1.4', download_dir=dir)
+nltk.download('wordnet', download_dir=dir)
+nltk.download('stopwords', download_dir=dir)
+nltk.data.path.append(dir)
+
+# try:
+#     nltk.data.find('corpora/wordnet')
+# except LookupError:
+#     nltk.download('wordnet')
 from nltk.corpus import wordnet as wn
 
 WORDNET_POS = {'VERB': wn.VERB, 'NOUN': wn.NOUN, 'ADJ': wn.ADJ, 'ADV': wn.ADV}
