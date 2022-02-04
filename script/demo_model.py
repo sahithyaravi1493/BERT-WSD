@@ -42,7 +42,7 @@ def get_predictions(model, tokenizer, sentence):
 
     with torch.no_grad():
         logits = torch.zeros(len(definitions), dtype=torch.double).to(DEVICE)
-        for i, bert_input in tqdm(list(enumerate(features)), desc="Progress"):
+        for i, bert_input in list(enumerate(features)):
             logits[i] = model.ranking_linear(
                 model.bert(
                     input_ids=torch.tensor(bert_input.input_ids, dtype=torch.long).unsqueeze(0).to(DEVICE),

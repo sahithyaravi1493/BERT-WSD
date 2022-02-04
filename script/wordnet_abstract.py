@@ -1,63 +1,65 @@
-
-import pandas as pd
-from tqdm import tqdm
-# from turtle import pos
-import nltk
-from nltk.corpus import wordnet as wn
-from nltk.wsd import lesk
-
 import spacy
 import re
 
+import pandas as pd
+from tqdm import tqdm
+
+import nltk
+from nltk.corpus import wordnet as wn
+from nltk.wsd import lesk
 # from pywsd.lesk import simple_lesk
-BERT_WSD = True
-model_dir = "/ubc/cs/research/nlp/sahiravi/BERT-WSD/bert_base-augmented-batch_size=128-lr=2e-5-max_gloss=6"
+
+# Comment these 3 lines out if we are not using BERT WSD
 from demo_model import get_predictions, load_model
+model_dir = "/ubc/cs/research/nlp/sahiravi/BERT-WSD/bert_base-augmented-batch_size=128-lr=2e-5-max_gloss=6"
 model, tokenizer = load_model(model_dir)
 
+# nltk downloads
 
 nlp = spacy.load("en_core_web_md")
 dir = '/ubc/cs/research/nlp/sahiravi/datasets/caches'
-# nltk.download('averaged_perceptron_tagger', download_dir=dir)
 nltk.download('omw-1.4', download_dir=dir)
 nltk.download('wordnet', download_dir=dir)
 nltk.download('stopwords', download_dir=dir)
 nltk.data.path.append(dir)
 stopwords = nltk.corpus.stopwords.words('english')
+
 # object and subject constants
 OBJECT_DEPS = {"dobj", "dative", "attr", "oprd"}
 SUBJECT_DEPS = {"nsubj", "nsubjpass", "agent", "expl","csubj"}
 POS_ALLOWED = {"NOUN"} #{"VERB", "NOUN", "ADJ"}
 
-# def pos_to_wordnet_pos(penntag, returnNone=False):
-#     morphy_tag = {'NN':wn.NOUN, 'JJ':wn.ADJ,
-#                     'VB':wn.VERB, 'RB':wn.ADV}
-#     try:
-#         return morphy_tag[penntag[:2]]
-#     except:
-#         return None if returnNone else ''
-sense_key_regex = r"(.*)\%(.*):(.*):(.*):(.*):(.*)"
-synset_types = {1:'n', 2:'v', 3:'a', 4:'r', 5:'s'}
 
-# def synset_from_sense_key(sense_key):
-#     lemma, ss_type, lex_num, lex_id, head_word, head_id = re.match(sense_key_regex, sense_key).groups()
-#     ss_idx = '.'.join([lemma, synset_types[int(ss_type)], lex_id])
-#     return wn.synset(ss_idx)
+def load_text(path):
+    with open(path) as f:
+        input = f.readlines()
+    return input
 
+def get_valid_pos(t):
+    return (len(t.text) > 2) and (t.lemma_ not in stopwords) and (t.pos_ in POS_ALLOWED)
+
+def get_all_similar_tos(word, tag=wn.NOUN):
+    for ss in wn.synsets(word):
+            for sim in ss.similar_tos(pos=tag):
+                for lemma in sim.lemma_names():
+                    yield (lemma, sim.name())
 
 def get_synonyms(word, tag=wn.NOUN):
     for synset in wn.synsets(word, pos=tag):
         for lemma in synset.lemmas():
             yield lemma.name()
 
-def get_hypernyms(sense, tag=wn.NOUN):
-    for synset in sense.hypernyms():
-        for lemma in synset.lemmas():
-            yield lemma.name()
+def get_hypernyms(sense, tag=wn.NOUN, K=2):
+    paths = sense.hypernym_paths()
+    for path in paths[:K]:
+        print(path)
+        for synset in path[:2]:
+            for lemma in synset.lemmas():
+                yield lemma.name()
 
 def disambiguate(sentence, word, method = "frequency"):
     sense = None
-    if BERT_WSD:
+    if method=="bert":
         sense = get_bert_predictions(sentence, word)
     elif method == "lesk":
         sense = lesk(sentence, word, "n")
@@ -68,26 +70,22 @@ def disambiguate(sentence, word, method = "frequency"):
     return sense
 
 
-def isvalid(t):
-    return (len(t.text) > 2) and (t.lemma_ not in stopwords) and (t.pos_ in POS_ALLOWED)
-
-
-def load_text(path):
-    with open(path) as f:
-        input = f.readlines()
-    return input
-
 def get_bert_predictions(sentence, word):
     out = None
     word_tgt = f"[TGT]{word}[TGT]"
     p = get_predictions(model, tokenizer, sentence.replace(word,word_tgt))
     if p:
-        print(p)
         out = p[0][1]
     else:
         if wn.synsets(word):
             out = wn.synsets(word)[0]
-        
+    return out
+
+def extract_pos_based(doc):
+    out = []
+    for token in doc:
+        if get_valid_pos(token):
+            out.append(token.text)
     return out
 
 
@@ -113,12 +111,7 @@ def extract_svo(doc):
     #return " ".join(sub).strip().lower(), " ".join(ve).strip().lower(), " ".join(at).strip().lower()
     return sub, ve, at, all
 
-def extract_pos_based(doc):
-    out = []
-    for token in doc:
-        if isvalid(token):
-            out.append(token.text)
-    return out
+
 
 def construct_abstractions(sentence, extract_method="pos", abstract_method="hypernyms"):
     doc = nlp(sentence)
@@ -132,14 +125,18 @@ def construct_abstractions(sentence, extract_method="pos", abstract_method="hype
     abs_sentences = []
     # print(all_words)
     for word in all_words:
-        if abstract_method == "synonyms":
+        if abstract_method == "synsets":
             unique = set(synonym for synonym in get_synonyms(word) if synonym != word)
             abstraction_map[word] = list(unique)[:5]
         elif abstract_method == "hypernyms":
             sense = disambiguate(sentence, word)
             if sense is not None:
-                unique = sorted(set(h for h in get_hypernyms(sense) if h != word))
+                unique = set(h for h in get_hypernyms(sense) if h != word)
                 abstraction_map[word] = unique
+        elif abstract_method == "similar_tos":
+            unique = set(synonym for synonym in get_all_similar_tos(word) if synonym != word)
+            abstraction_map[word] = list(unique)[:5]
+        
             
     for word in abstraction_map:
         for syn in abstraction_map[word]:
@@ -153,7 +150,7 @@ def all_sentence_abstractions(text):
     abstracted_sentences = []
     indices = []
     for i in tqdm(range(len(text))):
-        sentences = construct_abstractions(text[i], extract_method="pos", abstract_method="synonyms")
+        sentences = construct_abstractions(text[i], extract_method="pos", abstract_method="hypernyms")
         abstracted_sentences.extend(sentences)
         indices.extend([i]*len(sentences))
     df = pd.DataFrame()
@@ -165,13 +162,10 @@ def all_sentence_abstractions(text):
 if __name__ == "__main__":
     print(" Generate Abstractions for a sample input based on synonyms from wordnet")
     sent = "A cat and its furry companions on a couch."
-    abstractions = construct_abstractions(sent, extract_method="pos", abstract_method="hypernyms")
+    abstractions = construct_abstractions(sent, extract_method="pos", abstract_method="similar_tos")
     print(abstractions)
 
-
-
-    # Now process generated text from T5 into a dataframe
-
+    # # Now process generated text from T5 into a dataframe
     # split = 'valid'
     # root = '/ubc/cs/research/nlp/sahiravi/generative_csr/datasets/commongen/'
     # source_path = f'{root}/{split}.source'
@@ -191,7 +185,7 @@ if __name__ == "__main__":
     # for line in target:
     #     targets.extend([line]*n_sentences)
 
-    # print(len(output), len(targets), len(concepts), len(cids))
+    # print("No. of. instances", len(output), len(targets), len(concepts), len(cids))
     # gen_text = pd.DataFrame()
     # gen_text["generated"] = output
     # gen_text["concepts"] = concepts
