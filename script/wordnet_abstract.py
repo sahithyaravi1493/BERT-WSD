@@ -38,9 +38,17 @@ def load_text(path):
 def get_valid_pos(t):
     return (len(t.text) > 2) and (t.lemma_ not in stopwords) and (t.pos_ in POS_ALLOWED)
 
+
+def get_all_also_sees(word, tag=wn.NOUN):
+    for ss in wn.synsets(word, pos=tag):
+            for sim in ss.also_sees():
+                for lemma in sim.lemma_names():
+                    yield (lemma, sim.name())
+
+
 def get_all_similar_tos(word, tag=wn.NOUN):
-    for ss in wn.synsets(word):
-            for sim in ss.similar_tos(pos=tag):
+    for ss in wn.synsets(word, pos=tag):
+            for sim in ss.similar_tos():
                 for lemma in sim.lemma_names():
                     yield (lemma, sim.name())
 
@@ -49,13 +57,22 @@ def get_synonyms(word, tag=wn.NOUN):
         for lemma in synset.lemmas():
             yield lemma.name()
 
-def get_hypernyms(sense, tag=wn.NOUN, K=2):
+def get_hypernyms(sense, tag=wn.NOUN, K=3):
+    # Consider only upto K levels up in shortest path
     paths = sense.hypernym_paths()
-    for path in paths[:K]:
-        print(path)
-        for synset in path[:2]:
-            for lemma in synset.lemmas():
-                yield lemma.name()
+    shortest_path = None
+    shortest_len = 100000
+    for path in paths:
+        if len(path) < shortest_len:
+            shortest_len = len(path)
+            shortest_path = path
+    
+    shortest_path = shortest_path[-K:]
+    # print("shortest path", shortest_path)
+
+    for synset in shortest_path:
+        for lemma in synset.lemmas()[:1]:
+            yield lemma.name()
 
 def disambiguate(sentence, word, method = "frequency"):
     sense = None
@@ -134,7 +151,7 @@ def construct_abstractions(sentence, extract_method="pos", abstract_method="hype
                 unique = set(h for h in get_hypernyms(sense) if h != word)
                 abstraction_map[word] = unique
         elif abstract_method == "similar_tos":
-            unique = set(synonym for synonym in get_all_similar_tos(word) if synonym != word)
+            unique = set(synonym for synonym in get_all_also_sees(word) if synonym != word)
             abstraction_map[word] = list(unique)[:5]
         
             
@@ -162,7 +179,7 @@ def all_sentence_abstractions(text):
 if __name__ == "__main__":
     print(" Generate Abstractions for a sample input based on synonyms from wordnet")
     sent = "A cat and its furry companions on a couch."
-    abstractions = construct_abstractions(sent, extract_method="pos", abstract_method="similar_tos")
+    abstractions = construct_abstractions(sent, extract_method="pos", abstract_method="hypernyms")
     print(abstractions)
 
     # # Now process generated text from T5 into a dataframe
@@ -170,7 +187,7 @@ if __name__ == "__main__":
     # root = '/ubc/cs/research/nlp/sahiravi/generative_csr/datasets/commongen/'
     # source_path = f'{root}/{split}.source'
     # target_path = f'{root}/{split}.target'
-    # output_path = f'/ubc/cs/research/nlp/sahiravi/generative_csr/outputs/commongen_K50_P0.8/{split}.txt'
+    # output_path = f'/ubc/cs/research/nlp/sahiravi/generative_csr/outputs/commongen_K50_P0.5/{split}.txt'
     # input = load_text(source_path)
     # output = load_text(output_path)
     # target = load_text(target_path)
@@ -192,7 +209,7 @@ if __name__ == "__main__":
     # gen_text["targets"] = targets
     # gen_text["concept_set_idx"] = cids
     # gen_text["gen_id"] = list(range(len(output)))
-  
+    # gen_text.to_csv("gen_text.csv")
     # # generate and save abstractions
     # df_abstract = all_sentence_abstractions(gen_text["generated"].values)
     # df_abstract.to_csv("abstracted_df.csv")
