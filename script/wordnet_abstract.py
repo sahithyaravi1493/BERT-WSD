@@ -74,7 +74,7 @@ def get_hypernyms(sense, tag=wn.NOUN, K=3):
         for lemma in synset.lemmas()[:1]:
             yield lemma.name()
 
-def disambiguate(sentence, word, method = "frequency"):
+def disambiguate(sentence, word, method = "bert"):
     sense = None
     if method=="bert":
         sense = get_bert_predictions(sentence, word)
@@ -168,6 +168,7 @@ def all_sentence_abstractions(text):
     indices = []
     for i in tqdm(range(len(text))):
         sentences = construct_abstractions(text[i], extract_method="pos", abstract_method="hypernyms")
+        sentences.append(text[i])
         abstracted_sentences.extend(sentences)
         indices.extend([i]*len(sentences))
     df = pd.DataFrame()
@@ -182,35 +183,35 @@ if __name__ == "__main__":
     abstractions = construct_abstractions(sent, extract_method="pos", abstract_method="hypernyms")
     print(abstractions)
 
-    # # Now process generated text from T5 into a dataframe
-    # split = 'valid'
-    # root = '/ubc/cs/research/nlp/sahiravi/generative_csr/datasets/commongen/'
-    # source_path = f'{root}/{split}.source'
-    # target_path = f'{root}/{split}.target'
-    # output_path = f'/ubc/cs/research/nlp/sahiravi/generative_csr/outputs/commongen_K50_P0.5/{split}.txt'
-    # input = load_text(source_path)
-    # output = load_text(output_path)
-    # target = load_text(target_path)
-    # n_sentences = 5
-    # concepts = []
-    # targets = []
-    # cids = []
+    # Now process generated text from T5 into a dataframe
+    split = 'valid'
+    root = '/ubc/cs/research/nlp/sahiravi/generative_csr/datasets/commongen/'
+    source_path = f'{root}/{split}.source'
+    target_path = f'{root}/{split}.target'
+    output_path = f'/ubc/cs/research/nlp/sahiravi/generative_csr/outputs/commongen_K200_P0.7/{split}.txt'
+    input = load_text(source_path)
+    output = load_text(output_path)
+    target = load_text(target_path)
+    n_sentences = 5
+    concepts = []
+    targets = []
+    cids = []
 
-    # for i in range(len(input)):
-    #     concepts.extend([input[i]]*n_sentences)
-    #     cids.extend([i]*n_sentences)
-    # for line in target:
-    #     targets.extend([line]*n_sentences)
+    for i in range(len(input)):
+        concepts.extend([input[i]]*n_sentences)
+        cids.extend([i]*n_sentences)
+    for line in target:
+        targets.extend([line]*n_sentences)
 
     # print("No. of. instances", len(output), len(targets), len(concepts), len(cids))
-    # gen_text = pd.DataFrame()
-    # gen_text["generated"] = output
-    # gen_text["concepts"] = concepts
-    # gen_text["targets"] = targets
-    # gen_text["concept_set_idx"] = cids
-    # gen_text["gen_id"] = list(range(len(output)))
-    # gen_text.to_csv("gen_text.csv")
-    # # generate and save abstractions
-    # df_abstract = all_sentence_abstractions(gen_text["generated"].values)
-    # df_abstract.to_csv("abstracted_df.csv")
+    gen_text = pd.DataFrame()
+    gen_text["generated"] = output
+    gen_text["concepts"] = concepts
+    gen_text["targets"] = targets
+    gen_text["concept_set_idx"] = cids
+    gen_text["gen_id"] = list(range(len(output)))
+    gen_text.to_csv("gen_text.csv")
+    # generate and save abstractions
+    df_abstract = all_sentence_abstractions(gen_text["generated"].values)
+    df_abstract.to_csv(f"abstracted_{split}.csv")
 
